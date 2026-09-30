@@ -109,6 +109,13 @@
                             <i class="fa-solid fa-right-from-bracket mr-1"></i> 切換帳號
                         </button>
                     </div>
+                    <div id="admin-form-toggle-wrap" class="hidden items-center gap-2">
+                        <span class="text-xs font-bold text-slate-500">接收表單</span>
+                        <button id="form-receive-toggle" type="button" onclick="toggleFormReceiving()" class="relative inline-flex h-6 w-11 items-center rounded-full transition bg-emerald-500" aria-label="切換表單接收狀態">
+                            <span id="form-receive-toggle-dot" class="inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6"></span>
+                        </button>
+                        <span id="form-receive-status" class="text-xs font-bold text-emerald-600">開啟</span>
+                    </div>
                 </div>
             </div>
 
@@ -588,6 +595,10 @@
         }
 
         function startQuiz() {
+            if(!isFormReceiving) {
+                showToast('目前已暫停接收表單');
+                return;
+            }
             if(!mockUserProfile.email) {
                 handleGoogleLogin();
                 return;
@@ -915,6 +926,10 @@
         }
 
         async function submitFinalResults() {
+            if(!isFormReceiving) {
+                showToast('目前已暫停接收表單');
+                return;
+            }
             if (isSubmitting) return;
             isSubmitting = true;
 
@@ -962,6 +977,65 @@
             document.getElementById('stage2-quiz-card').classList.add('hidden');
             document.getElementById('stage2-result-card').classList.remove('hidden');
         }
+        // ===== 表單接收開關（僅新增功能，不修改原有流程） =====
+        const ADMIN_TEST_ACCOUNT = '12345678';
+        const FORM_RECEIVING_KEY = 'attachment_form_receiving';
+        let isFormReceiving = localStorage.getItem(FORM_RECEIVING_KEY) !== 'false';
+
+        function updateFormReceivingUI() {
+            const wrap = document.getElementById('admin-form-toggle-wrap');
+            const toggle = document.getElementById('form-receive-toggle');
+            const dot = document.getElementById('form-receive-toggle-dot');
+            const status = document.getElementById('form-receive-status');
+            if (!wrap || !toggle || !dot || !status) return;
+
+            const isAdmin = mockUserProfile.email === ADMIN_TEST_ACCOUNT;
+            wrap.classList.toggle('hidden', !isAdmin);
+            wrap.classList.toggle('flex', isAdmin);
+            if (!isAdmin) return;
+
+            if (isFormReceiving) {
+                toggle.classList.remove('bg-slate-400');
+                toggle.classList.add('bg-emerald-500');
+                dot.classList.remove('translate-x-1');
+                dot.classList.add('translate-x-6');
+                status.innerText = '開啟';
+                status.className = 'text-xs font-bold text-emerald-600';
+            } else {
+                toggle.classList.remove('bg-emerald-500');
+                toggle.classList.add('bg-slate-400');
+                dot.classList.remove('translate-x-6');
+                dot.classList.add('translate-x-1');
+                status.innerText = '關閉';
+                status.className = 'text-xs font-bold text-slate-500';
+            }
+        }
+
+        function toggleFormReceiving() {
+            if (mockUserProfile.email !== ADMIN_TEST_ACCOUNT) return;
+            isFormReceiving = !isFormReceiving;
+            localStorage.setItem(FORM_RECEIVING_KEY, String(isFormReceiving));
+            updateFormReceivingUI();
+            showToast(isFormReceiving ? '已開啟接收表單' : '已關閉接收表單');
+        }
+
+        // 監看原本登入/登出的畫面切換，不改動原有函式。
+        document.addEventListener('DOMContentLoaded', () => {
+            updateFormReceivingUI();
+            const loggedInView = document.getElementById('logged-in-view');
+            if (loggedInView) {
+                new MutationObserver(updateFormReceivingUI).observe(loggedInView, { attributes: true, attributeFilter: ['class'] });
+            }
+
+            // 在原有按鈕事件執行前攔截，讓「關閉接收」真正停止新表單進入。
+            document.addEventListener('click', (e) => {
+                if (!isFormReceiving && mockUserProfile.email && (e.target.closest('#start-btn') || e.target.closest('#s2-next-btn'))) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    showToast('目前已暫停接收表單');
+                }
+            }, true);
+        });
     </script>
 </body>
 </html>
